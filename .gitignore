@@ -1,0 +1,6 @@
+*.swp
+/target
+/out*
+/*.params
+/*.bmp
+/params

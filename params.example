@@ -1,0 +1,12 @@
+Params(
+    dimensions: Dimensions(width: 1920, height: 1080),
+    spread: 5,
+    distance_power: -1.75,
+    random_power: 3.5,
+    random_max: 0.1,
+    gamma: 0.75,
+    start_color: None,
+    //start_color: Some(Color(red: 0.263, green: 0.847, blue: 1.0)),
+    seed: None,
+    //seed: Some((0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+)
