@@ -38,56 +38,46 @@ Optionally reads params from `./params`.
 #[macro_use]
 mod error;
 mod color;
+mod coords;
 mod params;
 mod pixmap;
 
 use color::Color;
+use coords::{Dimensions, Position};
 use params::Params;
 use pixmap::Pixmap;
 
 type Float = f32;
 type Seed = [u8; 32];
 
-/// The dimensions of an image.
+/// Shape of the area of neighboring pixels considered when averaging.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub struct Dimensions {
-    pub width: usize,
-    pub height: usize,
+pub enum Spread {
+    Square {
+        width: usize,
+    },
+    QuarterCircle {
+        radius: usize,
+    },
 }
 
-impl Dimensions {
-    pub const fn new(width: usize, height: usize) -> Self {
-        Self {
-            width,
-            height,
-        }
-    }
-
-    /// The total number of pixels in the image.
-    pub const fn count(&self) -> usize {
-        self.width * self.height
-    }
-}
-
-/// A position within an image.
-#[derive(Clone, Copy, Debug)]
-pub struct Position {
-    pub x: usize,
-    pub y: usize,
-}
-
-impl Position {
-    pub const fn new(x: usize, y: usize) -> Self {
-        Self {
-            x,
-            y,
+impl Spread {
+    /// The width of the bounding box that holds the spread shape.
+    pub const fn bound(self) -> usize {
+        match self {
+            Self::Square {
+                width,
+            } => width,
+            Self::QuarterCircle {
+                radius,
+            } => radius,
         }
     }
 }
 
 /// Generates the image.
 pub struct Generator {
-    spread: usize,
+    spread: Spread,
     distance_power: Float,
     random_power: Float,
     random_max: Float,
@@ -119,39 +109,43 @@ impl Generator {
     /// `pos.x` and `pos.y` must be less than the image width and height,
     /// respectively.
     unsafe fn avg_neighbor_unchecked(&self, pos: Position) -> Color {
-        let spread = self.spread;
         let mut count = 0.0;
-        let mut avg = Color::default();
+        let mut avg = Color::BLACK;
 
-        let mut iteration = |x: usize, y: usize| {
-            // This is the pixel we haven't filled yet.
-            if x == pos.x && y == pos.y {
+        let bound = self.spread.bound();
+        let bound =
+            Dimensions::new(bound.min(pos.x + 1), bound.min(pos.y + 1));
+        bound.for_each(|delta| {
+            // Skip the pixel we haven't filled yet.
+            if delta == Position::ZERO {
                 return;
             }
 
-            // SAFETY: Given a valid starting position, all positions in
-            // this loop are valid (due to `saturating_sub`).
-            let color =
-                unsafe { self.data.get_unchecked(Position::new(x, y)) };
-
-            let dx = x as Float - pos.x as Float;
-            let dy = y as Float - pos.y as Float;
+            let dx = delta.x as Float;
+            let dy = delta.y as Float;
             let dist = (dx.powf(2.0) + dy.powf(2.0)).powf(0.5);
 
+            if let Spread::QuarterCircle {
+                radius,
+            } = self.spread
+            {
+                if dist > radius as Float {
+                    return;
+                }
+            }
+
+            let neighbor = pos - delta;
+            // SAFETY: Given a valid starting position, all positions in
+            // this loop are valid (due to `saturating_sub`).
+            let color = unsafe { self.data.get_unchecked(neighbor) };
             let weight = dist.powf(self.distance_power);
             avg += color * weight;
             count += weight;
-        };
-
-        for y in pos.y.saturating_sub(spread)..=pos.y {
-            for x in pos.x.saturating_sub(spread)..=pos.x {
-                iteration(x, y);
-            }
-        }
+        });
         avg / count
     }
 
-    /// Generates a random color near `color`.
+    /// Generates a random color similar to `color`.
     fn random_near(&mut self, color: Color) -> Color {
         let mut component = || {
             let n: Float = self.rng.gen();
@@ -159,7 +153,6 @@ impl Generator {
             let neg: bool = self.rng.gen();
             n * Float::from(neg as i8 * 2 - 1)
         };
-
         let delta = Color {
             red: component(),
             green: component(),
@@ -184,23 +177,16 @@ impl Generator {
 
     /// Fills the entire image.
     fn fill(&mut self) {
-        let dim = self.data.dimensions();
-
-        let mut iteration = |x: usize, y: usize| {
-            if x == 0 && y == 0 {
+        self.data.dimensions().for_each(|pos| {
+            // Don't fill the starting pixel.
+            if pos == Position::ZERO {
                 return;
             }
             // SAFETY: We call this method only with valid positions.
             unsafe {
-                self.fill_pos_unchecked(Position::new(x, y));
+                self.fill_pos_unchecked(pos);
             }
-        };
-
-        for y in 0..dim.height {
-            for x in 0..dim.width {
-                iteration(x, y);
-            }
-        }
+        })
     }
 
     /// Applies gamma correction.
@@ -279,18 +265,20 @@ fn main() {
         deserialize_params("()".as_bytes())
     };
 
+    // Create params file.
     let filename_len = filename.len();
     filename += ".params";
     let mut f = File::create(&filename).unwrap_or_else(|e| {
         error_exit!("could not create output params file: {e}");
     });
 
-    let pretty = PrettyConfig::new().struct_names(true).depth_limit(1);
+    let pretty = PrettyConfig::new().depth_limit(1);
     ron::ser::to_writer_pretty(&mut f, &params, pretty)
         .unwrap_or_else(params_write_failed);
     writeln!(f).unwrap_or_else(params_write_failed);
     drop(f);
 
+    // Create image.
     filename.replace_range(filename_len.., ".bmp");
     let generator = Generator::new(params);
     let f = File::create(filename).unwrap_or_else(|e| {

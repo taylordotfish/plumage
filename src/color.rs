@@ -24,7 +24,7 @@ use std::ops::{Add, Div, Mul, Sub};
 use std::ops::{AddAssign, DivAssign, MulAssign, SubAssign};
 
 /// The color of a pixel in an image. Each component is between 0 and 1.
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Color {
     pub red: Float,
     pub green: Float,
@@ -32,6 +32,12 @@ pub struct Color {
 }
 
 impl Color {
+    pub const BLACK: Self = Self {
+        red: 0.0,
+        green: 0.0,
+        blue: 0.0,
+    };
+
     /// Generates a random color.
     pub fn random<R: Rng>(mut rng: R) -> Self {
         Self {

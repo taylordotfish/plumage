@@ -1,10 +1,10 @@
-Params(
-    dimensions: Dimensions(width: 3840, height: 2160),
-    spread: 5,
+(
+    dimensions: (width: 3840, height: 2160),
+    spread: QuarterCircle(radius: 6),
     distance_power: -1.75,
     random_power: 3.5,
     random_max: 0.05,
     gamma: 0.75,
-    //start_color: Color(red: 0.8145867, green: 0.7911923, blue: 0.87385005),
-    //seed: "YmEOvUVPGwfOxtedVl10qlLOqBnMaYGnmgNfluwOH7o=",
+    //start_color: (red: 0.32941288, green: 0.30954784, blue: 0.7329547),
+    //seed: "sjCVyNoAPAoSGODQXZd/CzA/SAJU7svjgZv28VAFSJY=",
 )

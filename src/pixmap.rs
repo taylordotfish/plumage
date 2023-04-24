@@ -28,7 +28,7 @@ pub struct Pixmap {
 impl Pixmap {
     pub fn new(dimensions: Dimensions) -> Self {
         let mut data = Vec::new();
-        data.resize(dimensions.count(), Color::default());
+        data.resize(dimensions.count(), Color::BLACK);
         Self {
             dimensions,
             data,

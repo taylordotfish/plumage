@@ -17,7 +17,7 @@
  * along with Plumage. If not, see <https://www.gnu.org/licenses/>.
  */
 
-use super::{Color, Dimensions, Float, Seed};
+use super::{Color, Dimensions, Float, Seed, Spread};
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 
@@ -28,7 +28,7 @@ pub struct Params {
     #[serde(default = "Params::default_dimensions")]
     pub dimensions: Dimensions,
     #[serde(default = "Params::default_spread")]
-    pub spread: usize,
+    pub spread: Spread,
     #[serde(default = "Params::default_distance_power")]
     pub distance_power: Float,
     #[serde(default = "Params::default_random_power")]
@@ -48,8 +48,10 @@ impl Params {
         Dimensions::new(3840, 2160)
     }
 
-    fn default_spread() -> usize {
-        5
+    fn default_spread() -> Spread {
+        Spread::Square {
+            width: 5,
+        }
     }
 
     fn default_distance_power() -> Float {
