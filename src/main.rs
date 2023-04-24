@@ -1,43 +1,35 @@
+#![forbid(unsafe_op_in_unsafe_fn)]
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaChaRng;
 use ron::ser::PrettyConfig;
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::fmt::Display;
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::process::exit;
 
 const USAGE: &str = "\
 Usage: plumage <name>
-
 Creates `<name>.bmp` and `<name>.params`.
-Reads input params from `./params`.
+Reads params from `./params`.
 ";
 
+#[macro_use]
+mod error;
+mod color;
 mod params;
-use params::{FullParams, Params};
+mod pixmap;
+
+use color::Color;
+use params::Params;
+use pixmap::Pixmap;
 
 type Float = f32;
 type Seed = [u8; 32];
 
+/// The dimensions of an image.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub struct Color {
-    pub red: Float,
-    pub green: Float,
-    pub blue: Float,
-}
-
-impl Color {
-    pub fn random<R: Rng>(mut rng: R) -> Self {
-        Self {
-            red: rng.gen(),
-            green: rng.gen(),
-            blue: rng.gen(),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Dimensions {
     pub width: usize,
     pub height: usize,
@@ -51,12 +43,14 @@ impl Dimensions {
         }
     }
 
-    pub fn count(&self) -> usize {
+    /// The total number of pixels in the image.
+    pub const fn count(&self) -> usize {
         self.width * self.height
     }
 }
 
-#[derive(Clone, Copy)]
+/// A position within an image.
+#[derive(Clone, Copy, Debug)]
 pub struct Position {
     pub x: usize,
     pub y: usize,
@@ -71,68 +65,22 @@ impl Position {
     }
 }
 
-pub struct ImageData {
-    dimensions: Dimensions,
-    data: Vec<Option<Color>>,
-}
-
-impl ImageData {
-    pub fn new(dimensions: Dimensions) -> Self {
-        let mut data = Vec::new();
-        data.resize(dimensions.count(), None);
-        Self {
-            dimensions,
-            data,
-        }
-    }
-
-    pub fn dimensions(&self) -> Dimensions {
-        self.dimensions
-    }
-
-    #[allow(dead_code)]
-    pub fn data(&self) -> &[Option<Color>] {
-        &self.data
-    }
-
-    pub fn data_mut(&mut self) -> &mut [Option<Color>] {
-        &mut self.data
-    }
-
-    pub fn into_data(self) -> Vec<Option<Color>> {
-        self.data
-    }
-
-    fn pos_index(&self, pos: Position) -> usize {
-        pos.y * self.dimensions.width + pos.x
-    }
-
-    pub fn get(&self, pos: Position) -> Option<Color> {
-        self.data.get(self.pos_index(pos)).copied().flatten()
-    }
-
-    pub fn set(&mut self, pos: Position, color: Color) {
-        let index = self.pos_index(pos);
-        self.data[index] = Some(color);
-    }
-}
-
+/// Generates the image.
 pub struct Generator {
     spread: usize,
     distance_power: Float,
     random_power: Float,
     random_max: Float,
     gamma: Float,
-    data: ImageData,
+    data: Pixmap,
     rng: ChaChaRng,
 }
 
 impl Generator {
-    pub fn new(params: FullParams) -> Self {
-        let params = params.into_params();
-        let rng = ChaChaRng::from_seed(params.seed.unwrap());
-        let mut data = ImageData::new(params.dimensions);
-        data.set(Position::new(0, 0), params.start_color.unwrap());
+    pub fn new(params: Params) -> Self {
+        let rng = ChaChaRng::from_seed(params.seed);
+        let mut data = Pixmap::new(params.dimensions);
+        data[Position::new(0, 0)] = params.start_color;
         Self {
             spread: params.spread,
             distance_power: params.distance_power,
@@ -144,38 +92,46 @@ impl Generator {
         }
     }
 
-    fn avg_neighbor(&self, pos: Position) -> Color {
+    /// Calculates the average color near a pixel.
+    ///
+    /// # Safety
+    ///
+    /// `pos.x` and `pos.y` must be less than the image width and height,
+    /// respectively.
+    unsafe fn avg_neighbor_unchecked(&self, pos: Position) -> Color {
         let spread = self.spread;
         let mut count = 0.0;
-        let mut r = 0.0;
-        let mut g = 0.0;
-        let mut b = 0.0;
+        let mut avg = Color::default();
+
+        let mut iteration = |x: usize, y: usize| {
+            // This is the pixel we haven't filled yet.
+            if x == pos.x && y == pos.y {
+                return;
+            }
+
+            // SAFETY: Given a valid starting position, all positions in
+            // this loop are valid (due to `saturating_sub`).
+            let color =
+                unsafe { self.data.get_unchecked(Position::new(x, y)) };
+
+            let dx = x as Float - pos.x as Float;
+            let dy = y as Float - pos.y as Float;
+            let dist = (dx.powf(2.0) + dy.powf(2.0)).powf(0.5);
+
+            let weight = dist.powf(self.distance_power);
+            avg += color * weight;
+            count += weight;
+        };
 
         for y in pos.y.saturating_sub(spread)..=pos.y {
             for x in pos.x.saturating_sub(spread)..=pos.x {
-                let Some(color) = self.data.get(Position::new(x, y)) else {
-                    continue;
-                };
-
-                let dx = x as Float - pos.x as Float;
-                let dy = y as Float - pos.y as Float;
-                let dist = (dx.powf(2.0) + dy.powf(2.0)).powf(0.5);
-                let mult = dist.powf(self.distance_power);
-
-                r += color.red * mult;
-                g += color.green * mult;
-                b += color.blue * mult;
-                count += mult;
+                iteration(x, y);
             }
         }
-
-        Color {
-            red: r / count,
-            green: g / count,
-            blue: b / count,
-        }
+        avg / count
     }
 
+    /// Generates a random color near `color`.
     fn random_near(&mut self, color: Color) -> Color {
         let mut component = || {
             let n: Float = self.rng.gen();
@@ -184,61 +140,75 @@ impl Generator {
             n * Float::from(neg as i8 * 2 - 1)
         };
 
-        Color {
-            red: (color.red + component()).clamp(0.0, 1.0),
-            green: (color.green + component()).clamp(0.0, 1.0),
-            blue: (color.blue + component()).clamp(0.0, 1.0),
-        }
+        let delta = Color {
+            red: component(),
+            green: component(),
+            blue: component(),
+        };
+        (color + delta).clamp(0.0, 1.0)
     }
 
-    fn fill_pos(&mut self, pos: Position) {
-        if self.data.get(pos).is_some() {
-            return;
-        }
-        let neighbor = self.avg_neighbor(pos);
+    /// Fills a single pixel.
+    ///
+    /// # Safety
+    ///
+    /// `pos.x` and `pos.y` must be less than the image width and height,
+    /// respectively.
+    unsafe fn fill_pos_unchecked(&mut self, pos: Position) {
+        // SAFETY: Checked by caller.
+        let neighbor = unsafe { self.avg_neighbor_unchecked(pos) };
         let color = self.random_near(neighbor);
-        self.data.set(pos, color);
+        // SAFETY: Checked by caller.
+        *unsafe { self.data.get_unchecked_mut(pos) } = color;
     }
 
+    /// Fills the entire image.
     fn fill(&mut self) {
         let dim = self.data.dimensions();
+
+        let mut iteration = |x: usize, y: usize| {
+            if x == 0 && y == 0 {
+                return;
+            }
+            // SAFETY: We call this method only with valid positions.
+            unsafe {
+                self.fill_pos_unchecked(Position::new(x, y));
+            }
+        };
+
         for y in 0..dim.height {
             for x in 0..dim.width {
-                self.fill_pos(Position::new(x, y));
+                iteration(x, y);
             }
         }
     }
 
+    /// Applies gamma correction.
     fn apply_gamma(&mut self) {
         for color in self.data.data_mut() {
-            let color = color.as_mut().unwrap();
-            color.red = color.red.powf(self.gamma);
-            color.green = color.green.powf(self.gamma);
-            color.blue = color.blue.powf(self.gamma);
+            *color = color.powf(self.gamma);
         }
     }
 
+    /// Generates an image and writes it to `stream`.
     pub fn generate<W: Write>(mut self, mut stream: W) -> io::Result<()> {
         self.fill();
         self.apply_gamma();
         let dim = self.data.dimensions();
-        let data = self.data.into_data();
 
-        let mut int_data = Vec::with_capacity(data.len() * 3);
-        for color in data {
-            let color = color.unwrap();
-            let conv = |n: Float| (n * 255.0).round() as u8;
-            int_data.push(conv(color.blue));
-            int_data.push(conv(color.green));
-            int_data.push(conv(color.red));
-        }
+        // The algorithm we applied ensures no color components can fall
+        // outside [0, 1].
+        let bgr = unsafe { self.data.to_bgr_unchecked() };
+        drop(self.data);
 
-        let size: u32 = 14 + 40 + int_data.len() as u32;
+        // Write bitmap file header.
         stream.write_all(b"BM")?;
+        let size: u32 = 14 + 40 + bgr.len() as u32;
         stream.write_all(&size.to_le_bytes())?;
         stream.write_all(b"PLMG")?;
         stream.write_all(&(14_u32 + 40).to_le_bytes())?;
 
+        // Write BITMAPINFOHEADER.
         stream.write_all(&40_u32.to_le_bytes())?;
         stream.write_all(&(dim.width as u32).to_le_bytes())?;
         stream.write_all(&(dim.height as u32).wrapping_neg().to_le_bytes())?;
@@ -251,65 +221,59 @@ impl Generator {
         stream.write_all(&0_u32.to_le_bytes())?;
         stream.write_all(&0_u32.to_le_bytes())?;
 
-        stream.write_all(&int_data)?;
+        // Write pixel array.
+        stream.write_all(&bgr)?;
         Ok(())
     }
 }
 
-#[macro_use]
-mod error_exit {
-    use std::fmt::Display;
-    use std::process::exit;
+fn deserialize_params<R: Read>(stream: R) -> Params {
+    ron::de::from_reader(stream).unwrap_or_else(|e| {
+        error_exit!("error reading params: {e}");
+    })
+}
 
-    macro_rules! error_exit {
-        ($($args:tt)*) => {
-            crate::error_exit::__run(format_args!($($args)*))
-        };
-    }
+fn usage() {
+    print!("{USAGE}");
+    exit(0);
+}
 
-    #[doc(hidden)]
-    pub fn __run(args: impl Display) -> ! {
-        eprintln!("error: {}", args);
-        if cfg!(feature = "panic") {
-            panic!("error: {}", args);
-        } else {
-            exit(1);
-        }
-    }
+fn params_write_failed<T>(e: impl Display) -> T {
+    error_exit!("could not write to output params file: {e}");
 }
 
 fn main() {
-    let pretty = || PrettyConfig::new().struct_names(true).depth_limit(1);
-    let params = if let Ok(f) = File::open("params") {
-        ron::de::from_reader(f).unwrap_or_else(|e| {
-            error_exit!("error reading params: {e}");
-        })
-    } else {
-        Params::DEFAULT.clone()
-    };
-
     let mut args = env::args();
     let _ = args.next();
-    let Some(filename) = args.next() else {
-        eprint!("{USAGE}");
-        exit(1);
+    let Some(mut filename) = args.next() else {
+        args_error!("missing <name>");
     };
 
     if filename == "-h" || filename == "--help" {
-        print!("{USAGE}");
-        exit(0);
+        usage();
     }
 
-    let params = params.fill();
-    let f = File::create(filename.clone() + ".params").unwrap_or_else(|e| {
+    let params = if let Ok(f) = File::open("params") {
+        deserialize_params(f)
+    } else {
+        deserialize_params("()".as_bytes())
+    };
+
+    let filename_len = filename.len();
+    filename += ".params";
+    let mut f = File::create(&filename).unwrap_or_else(|e| {
         error_exit!("could not create output params file: {e}");
     });
-    ron::ser::to_writer_pretty(f, &*params, pretty()).unwrap_or_else(|e| {
-        error_exit!("could not write to output params file: {e}");
-    });
 
+    let pretty = PrettyConfig::new().struct_names(true).depth_limit(1);
+    ron::ser::to_writer_pretty(&mut f, &params, pretty)
+        .unwrap_or_else(params_write_failed);
+    writeln!(f).unwrap_or_else(params_write_failed);
+    drop(f);
+
+    filename.replace_range(filename_len.., ".bmp");
     let generator = Generator::new(params);
-    let f = File::create(filename + ".bmp").unwrap_or_else(|e| {
+    let f = File::create(filename).unwrap_or_else(|e| {
         error_exit!("could not create output file: {e}");
     });
     generator.generate(f).unwrap_or_else(|e| {

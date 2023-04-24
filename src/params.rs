@@ -1,55 +1,61 @@
 use super::{Color, Dimensions, Float, Seed};
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
-use std::ops::Deref;
 
-#[derive(Clone, Serialize, Deserialize)]
+mod seed;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Params {
+    #[serde(default = "Params::default_dimensions")]
     pub dimensions: Dimensions,
+    #[serde(default = "Params::default_spread")]
     pub spread: usize,
+    #[serde(default = "Params::default_distance_power")]
     pub distance_power: Float,
+    #[serde(default = "Params::default_random_power")]
     pub random_power: Float,
+    #[serde(default = "Params::default_random_max")]
     pub random_max: Float,
+    #[serde(default = "Params::default_gamma")]
     pub gamma: Float,
-    pub start_color: Option<Color>,
-    pub seed: Option<Seed>,
+    #[serde(default = "Params::default_start_color")]
+    pub start_color: Color,
+    #[serde(default = "Params::default_seed", with = "seed")]
+    pub seed: Seed,
 }
 
 impl Params {
-    pub const DEFAULT: Self = Self {
-        dimensions: Dimensions::new(100, 100),
-        spread: 5,
-        distance_power: -2.0,
-        random_power: 3.0,
-        random_max: 0.15,
-        gamma: 0.7,
-        start_color: None,
-        seed: None,
-    };
-
-    pub fn fill(mut self) -> FullParams {
-        self.start_color.get_or_insert_with(|| Color::random(thread_rng()));
-        self.seed.get_or_insert_with(|| {
-            let mut seed = Seed::default();
-            thread_rng().fill(&mut seed);
-            seed
-        });
-        FullParams(self)
+    fn default_dimensions() -> Dimensions {
+        Dimensions::new(3840, 2160)
     }
-}
 
-pub struct FullParams(Params);
-
-impl FullParams {
-    pub fn into_params(self) -> Params {
-        self.0
+    fn default_spread() -> usize {
+        5
     }
-}
 
-impl Deref for FullParams {
-    type Target = Params;
+    fn default_distance_power() -> Float {
+        -1.75
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    fn default_random_power() -> Float {
+        3.5
+    }
+
+    fn default_random_max() -> Float {
+        0.05
+    }
+
+    fn default_gamma() -> Float {
+        0.75
+    }
+
+    fn default_start_color() -> Color {
+        Color::random(thread_rng())
+    }
+
+    fn default_seed() -> Seed {
+        let mut seed = Seed::default();
+        thread_rng().fill(&mut seed);
+        seed
     }
 }

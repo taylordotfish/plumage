@@ -1,12 +1,10 @@
 Params(
-    dimensions: Dimensions(width: 1920, height: 1080),
+    dimensions: Dimensions(width: 3840, height: 2160),
     spread: 5,
     distance_power: -1.75,
     random_power: 3.5,
-    random_max: 0.1,
+    random_max: 0.05,
     gamma: 0.75,
-    start_color: None,
-    //start_color: Some(Color(red: 0.263, green: 0.847, blue: 1.0)),
-    seed: None,
-    //seed: Some((0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    //start_color: Color(red: 0.8145867, green: 0.7911923, blue: 0.87385005),
+    //seed: "YmEOvUVPGwfOxtedVl10qlLOqBnMaYGnmgNfluwOH7o=",
 )
