@@ -3,6 +3,8 @@ Plumage
 
 Plumage generates colorful pictures.
 
+![example output](misc/example.png)
+
 Building
 --------
 
