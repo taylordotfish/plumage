@@ -1,8 +1,27 @@
 #!/bin/bash
+# Copyright (C) 2023 taylor.fish <contact@taylor.fish>
+#
+# This file is part of Plumage.
+#
+# Plumage is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Plumage is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with Plumage. If not, see <https://www.gnu.org/licenses/>.
+
 set -euo pipefail
 
 USAGE=$(cat << EOF
-Usage: $(basename "$0") [out-dir [count]]
+Usage: $(basename "$0") <out-dir> <count>
+
+Generates <count> images in <out-dir>.
 \$PARALLEL controls number of jobs.
 EOF
 )
@@ -12,8 +31,13 @@ if [[ "${1:-}" =~ -h|--help ]]; then
     exit
 fi
 
-dir=${1:-.}
-count=${2:-100}
+if [ -z "${2+.}" ]; then
+    echo "$USAGE"
+    exit 1
+fi
+
+dir=${1:-}
+count=${2:-}
 fmt_len=$(printf '%s' "$count" | wc -c)
 parallel=${PARALLEL:-$(nproc)}
 
