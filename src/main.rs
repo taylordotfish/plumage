@@ -7,6 +7,13 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::process::exit;
 
+const USAGE: &str = "\
+Usage: plumage <name>
+
+Creates `<name>.bmp` and `<name>.params`.
+Reads input params from `./params`.
+";
+
 mod params;
 use params::{FullParams, Params};
 
@@ -284,9 +291,14 @@ fn main() {
     let mut args = env::args();
     let _ = args.next();
     let Some(filename) = args.next() else {
-        eprintln!("Usage: plumage <output-name>");
+        eprint!("{USAGE}");
         exit(1);
     };
+
+    if filename == "-h" || filename == "--help" {
+        print!("{USAGE}");
+        exit(0);
+    }
 
     let params = params.fill();
     let f = File::create(filename.clone() + ".params").unwrap_or_else(|e| {
