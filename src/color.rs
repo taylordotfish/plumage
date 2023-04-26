@@ -18,10 +18,10 @@
  */
 
 use super::Float;
+use core::ops::{Add, Div, Mul, Sub};
+use core::ops::{AddAssign, DivAssign, MulAssign, SubAssign};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::ops::{Add, Div, Mul, Sub};
-use std::ops::{AddAssign, DivAssign, MulAssign, SubAssign};
 
 /// The color of a pixel in an image. Each component is between 0 and 1.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -32,6 +32,7 @@ pub struct Color {
 }
 
 impl Color {
+    /// rgb(0, 0, 0).
     pub const BLACK: Self = Self {
         red: 0.0,
         green: 0.0,
@@ -47,6 +48,7 @@ impl Color {
         }
     }
 
+    /// Calls [`powf`](Float::powf) on each component.
     pub fn powf(self, n: Float) -> Self {
         Self {
             red: self.red.powf(n),
@@ -55,6 +57,7 @@ impl Color {
         }
     }
 
+    /// Calls [`clamp`](Float::clamp) on each component.
     pub fn clamp(self, min: Float, max: Float) -> Self {
         Self {
             red: self.red.clamp(min, max),

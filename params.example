@@ -1,6 +1,6 @@
 (
     dimensions: (width: 3840, height: 2160),
-    spread: QuarterCircle(radius: 6),
+    spread: QuarterCircle(radius: 5),
     distance_power: -1.75,
     random_power: 3.5,
     random_max: 0.05,

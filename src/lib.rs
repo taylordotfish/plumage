@@ -17,32 +17,24 @@
  * along with Plumage. If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::fmt::Display;
-use std::process::exit;
+#![deny(unsafe_op_in_unsafe_fn)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
-/// Displays an error message and exits.
-macro_rules! error_exit {
-    ($($args:tt)*) => {
-        crate::error::__exit(format_args!($($args)*))
-    };
-}
+extern crate alloc;
 
-macro_rules! args_error {
-    ($($args:tt)*) => {
-        error_exit!(
-            "{}\n{}",
-            format_args!($($args)*),
-            "See `plumage --help` for usage information.",
-        );
-    };
-}
+mod color;
+mod coords;
+mod generate;
+mod params;
+mod pixmap;
 
-#[doc(hidden)]
-pub fn __exit(args: impl Display) -> ! {
-    eprintln!("error: {args}");
-    if cfg!(feature = "panic") {
-        panic!("error: {args}");
-    } else {
-        exit(1);
-    }
-}
+use coords::Position;
+use pixmap::Pixmap;
+
+pub use color::Color;
+pub use coords::Dimensions;
+pub use generate::Generator;
+pub use params::{Params, Spread};
+
+pub type Float = f32;
+pub type Seed = [u8; 32];

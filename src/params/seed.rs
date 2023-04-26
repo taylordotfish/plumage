@@ -18,9 +18,9 @@
  */
 
 use super::Seed;
+use core::fmt;
 use serde::de::{Error, Visitor};
 use serde::{Deserializer, Serializer};
-use std::fmt;
 
 pub fn serialize<S>(seed: &Seed, serializer: S) -> Result<S::Ok, S::Error>
 where

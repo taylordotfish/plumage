@@ -14,4 +14,11 @@ version = "1.0"
 features = ["derive"]
 
 [features]
-panic = []
+default = ["std"]
+std = []
+cli-panic = []
+
+[[bin]]
+name = "plumage"
+path = "src/cli/main.rs"
+required-features = ["std"]

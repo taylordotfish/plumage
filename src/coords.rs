@@ -17,8 +17,8 @@
  * along with Plumage. If not, see <https://www.gnu.org/licenses/>.
  */
 
+use core::ops::{Add, AddAssign, Sub, SubAssign};
 use serde::{Deserialize, Serialize};
-use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 /// The dimensions of an image.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -28,11 +28,17 @@ pub struct Dimensions {
 }
 
 impl Dimensions {
+    /// Creates a new set of [`Dimensions`].
     pub const fn new(width: usize, height: usize) -> Self {
         Self {
             width,
             height,
         }
+    }
+
+    /// Same as [`Self::new(width, width)`].
+    pub const fn square(width: usize) -> Self {
+        Self::new(width, width)
     }
 
     /// The total number of pixels in the image.
@@ -46,6 +52,23 @@ impl Dimensions {
             for x in 0..self.width {
                 f(Position::new(x, y));
             }
+        }
+    }
+
+    /// Calls [`min`](usize::min) on each dimension.
+    pub fn min(self, other: Self) -> Self {
+        Self {
+            width: self.width.min(other.width),
+            height: self.height.min(other.height),
+        }
+    }
+
+    #[allow(dead_code)]
+    /// Calls [`max`](usize::max) on each dimension.
+    pub fn max(self, other: Self) -> Self {
+        Self {
+            width: self.width.max(other.width),
+            height: self.height.max(other.height),
         }
     }
 }
@@ -67,8 +90,10 @@ pub struct Position {
 }
 
 impl Position {
+    /// (0, 0).
     pub const ZERO: Self = Position::new(0, 0);
 
+    /// Creates a new [`Position`].
     pub const fn new(x: usize, y: usize) -> Self {
         Self {
             x,

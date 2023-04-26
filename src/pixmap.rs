@@ -18,14 +18,18 @@
  */
 
 use super::{Color, Dimensions, Float, Position};
-use std::ops::{Index, IndexMut};
+use alloc::boxed::Box;
+use alloc::vec::Vec;
+use core::ops::{Index, IndexMut};
 
+/// A two-dimensional array of pixels.
 pub struct Pixmap {
     dimensions: Dimensions,
     data: Vec<Color>,
 }
 
 impl Pixmap {
+    /// Creates a new [`Pixmap`].
     pub fn new(dimensions: Dimensions) -> Self {
         let mut data = Vec::new();
         data.resize(dimensions.count(), Color::BLACK);
@@ -35,28 +39,35 @@ impl Pixmap {
         }
     }
 
+    /// The dimensions of the image.
     pub fn dimensions(&self) -> Dimensions {
         self.dimensions
     }
 
     #[allow(dead_code)]
+    /// The raw pixel data as an immutable reference.
     pub fn data(&self) -> &[Color] {
         &self.data
     }
 
+    /// The raw pixel data as an immutable reference.
     pub fn data_mut(&mut self) -> &mut [Color] {
         &mut self.data
     }
 
     #[allow(dead_code)]
-    pub fn into_data(self) -> Vec<Color> {
-        self.data
+    /// Takes ownership of the raw pixel data.
+    pub fn into_data(self) -> Box<[Color]> {
+        self.data.into_boxed_slice()
     }
 
+    /// Calculates the index into the internal array for the given position.
     fn pos_index(&self, pos: Position) -> usize {
         pos.y * self.dimensions.width + pos.x
     }
 
+    /// Gets the pixel at `pos` without bounds checking.
+    ///
     /// # Safety
     ///
     /// `pos.x` and `pos.y` must be less than the image width and height,
@@ -66,6 +77,8 @@ impl Pixmap {
         unsafe { *self.data.get_unchecked(self.pos_index(pos)) }
     }
 
+    /// Mutably gets the pixel at `pos` without bounds checking.
+    ///
     /// # Safety
     ///
     /// `pos.x` and `pos.y` must be less than the image width and height,
@@ -76,6 +89,8 @@ impl Pixmap {
         unsafe { self.data.get_unchecked_mut(index) }
     }
 
+    /// Converts the pixmap to a BMP-style BGR pixel array.
+    ///
     /// # Safety
     ///
     /// All color components in the image must be between 0 and 1.

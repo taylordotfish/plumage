@@ -17,65 +17,13 @@
  * along with Plumage. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#![forbid(unsafe_op_in_unsafe_fn)]
+use super::{Color, Float, Params, Pixmap, Position, Spread};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaChaRng;
-use ron::ser::PrettyConfig;
-use serde::{Deserialize, Serialize};
-use std::env;
-use std::fmt::Display;
-use std::fs::File;
-use std::io::{self, Read, Write};
-use std::process::exit;
+#[cfg(feature = "std")]
+use std::io::{self, Write};
 
-const USAGE: &str = "\
-Usage: plumage <name>
-
-Creates `<name>.bmp` and `<name>.params`.
-Optionally reads params from `./params`.
-";
-
-#[macro_use]
-mod error;
-mod color;
-mod coords;
-mod params;
-mod pixmap;
-
-use color::Color;
-use coords::{Dimensions, Position};
-use params::Params;
-use pixmap::Pixmap;
-
-type Float = f32;
-type Seed = [u8; 32];
-
-/// Shape of the area of neighboring pixels considered when averaging.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum Spread {
-    Square {
-        width: usize,
-    },
-    QuarterCircle {
-        radius: usize,
-    },
-}
-
-impl Spread {
-    /// The width of the bounding box that holds the spread shape.
-    pub const fn bound(self) -> usize {
-        match self {
-            Self::Square {
-                width,
-            } => width,
-            Self::QuarterCircle {
-                radius,
-            } => radius,
-        }
-    }
-}
-
-/// Generates the image.
+/// Generates and writes the image.
 pub struct Generator {
     spread: Spread,
     distance_power: Float,
@@ -87,6 +35,7 @@ pub struct Generator {
 }
 
 impl Generator {
+    /// Creates a new [`Generator`].
     pub fn new(params: Params) -> Self {
         let rng = ChaChaRng::from_seed(params.seed);
         let mut data = Pixmap::new(params.dimensions);
@@ -112,10 +61,9 @@ impl Generator {
         let mut count = 0.0;
         let mut avg = Color::BLACK;
 
-        let bound = self.spread.bound();
-        let bound =
-            Dimensions::new(bound.min(pos.x + 1), bound.min(pos.y + 1));
-        bound.for_each(|delta| {
+        let bounds = self.spread.bounds();
+        let bounds = bounds.min((pos + Position::new(1, 1)).into());
+        bounds.for_each(|delta| {
             // Skip the pixel we haven't filled yet.
             if delta == Position::ZERO {
                 return;
@@ -135,8 +83,8 @@ impl Generator {
             }
 
             let neighbor = pos - delta;
-            // SAFETY: Given a valid starting position, all positions in
-            // this loop are valid (due to `saturating_sub`).
+            // SAFETY: `delta` cannot be greater than `pos`, so `neighbor` is
+            // valid.
             let color = unsafe { self.data.get_unchecked(neighbor) };
             let weight = dist.powf(self.distance_power);
             avg += color * weight;
@@ -175,7 +123,7 @@ impl Generator {
         *unsafe { self.data.get_unchecked_mut(pos) } = color;
     }
 
-    /// Fills the entire image.
+    /// Fills every pixel in the image.
     fn fill(&mut self) {
         self.data.dimensions().for_each(|pos| {
             // Don't fill the starting pixel.
@@ -196,95 +144,55 @@ impl Generator {
         }
     }
 
-    /// Generates an image and writes it to `stream`.
-    pub fn generate<W: Write>(mut self, mut stream: W) -> io::Result<()> {
+    /// Applies all passes.
+    fn apply_all(&mut self) {
         self.fill();
         self.apply_gamma();
+    }
+
+    #[cfg(feature = "std")]
+    /// Generates an image and writes it to `stream`.
+    pub fn generate<W: Write>(self, mut stream: W) -> io::Result<()> {
+        self.generate_with(|bytes| stream.write_all(bytes))
+    }
+
+    /// Generates an image and writes it by calling a custom function.
+    ///
+    /// `push` should append the given bytes when called.
+    pub fn generate_with<F, E>(mut self, mut push: F) -> Result<(), E>
+    where
+        F: FnMut(&[u8]) -> Result<(), E>,
+    {
+        self.apply_all();
         let dim = self.data.dimensions();
 
-        // The algorithm we applied ensures no color components can fall
-        // outside [0, 1].
+        // SAFETY: The algorithm we applied ensures no color components can
+        // fall outside [0, 1].
         let bgr = unsafe { self.data.to_bgr_unchecked() };
         drop(self.data);
+        let size: u32 = 14 + 40 + bgr.len() as u32;
 
         // Write bitmap file header.
-        stream.write_all(b"BM")?;
-        let size: u32 = 14 + 40 + bgr.len() as u32;
-        stream.write_all(&size.to_le_bytes())?;
-        stream.write_all(b"PLMG")?;
-        stream.write_all(&(14_u32 + 40).to_le_bytes())?;
+        push(b"BM")?;
+        push(&size.to_le_bytes())?;
+        push(b"PLMG")?;
+        push(&(14_u32 + 40).to_le_bytes())?;
 
         // Write BITMAPINFOHEADER.
-        stream.write_all(&40_u32.to_le_bytes())?;
-        stream.write_all(&(dim.width as u32).to_le_bytes())?;
-        stream.write_all(&(dim.height as u32).wrapping_neg().to_le_bytes())?;
-        stream.write_all(&1_u16.to_le_bytes())?;
-        stream.write_all(&24_u16.to_le_bytes())?;
-        stream.write_all(&0_u32.to_le_bytes())?;
-        stream.write_all(&0_u32.to_le_bytes())?;
-        stream.write_all(&96_u32.to_le_bytes())?;
-        stream.write_all(&96_u32.to_le_bytes())?;
-        stream.write_all(&0_u32.to_le_bytes())?;
-        stream.write_all(&0_u32.to_le_bytes())?;
+        push(&40_u32.to_le_bytes())?;
+        push(&(dim.width as u32).to_le_bytes())?;
+        push(&(dim.height as u32).wrapping_neg().to_le_bytes())?;
+        push(&1_u16.to_le_bytes())?;
+        push(&24_u16.to_le_bytes())?;
+        push(&0_u32.to_le_bytes())?;
+        push(&0_u32.to_le_bytes())?;
+        push(&96_u32.to_le_bytes())?;
+        push(&96_u32.to_le_bytes())?;
+        push(&0_u32.to_le_bytes())?;
+        push(&0_u32.to_le_bytes())?;
 
         // Write pixel array.
-        stream.write_all(&bgr)?;
+        push(&bgr)?;
         Ok(())
     }
-}
-
-fn deserialize_params<R: Read>(stream: R) -> Params {
-    ron::de::from_reader(stream).unwrap_or_else(|e| {
-        error_exit!("error reading params: {e}");
-    })
-}
-
-fn usage() {
-    print!("{USAGE}");
-    exit(0);
-}
-
-fn params_write_failed<T>(e: impl Display) -> T {
-    error_exit!("could not write to output params file: {e}");
-}
-
-fn main() {
-    let mut args = env::args();
-    let _ = args.next();
-    let Some(mut filename) = args.next() else {
-        args_error!("missing <name>");
-    };
-
-    if filename == "-h" || filename == "--help" {
-        usage();
-    }
-
-    let params = if let Ok(f) = File::open("params") {
-        deserialize_params(f)
-    } else {
-        deserialize_params("()".as_bytes())
-    };
-
-    // Create params file.
-    let filename_len = filename.len();
-    filename += ".params";
-    let mut f = File::create(&filename).unwrap_or_else(|e| {
-        error_exit!("could not create output params file: {e}");
-    });
-
-    let pretty = PrettyConfig::new().depth_limit(1);
-    ron::ser::to_writer_pretty(&mut f, &params, pretty)
-        .unwrap_or_else(params_write_failed);
-    writeln!(f).unwrap_or_else(params_write_failed);
-    drop(f);
-
-    // Create image.
-    filename.replace_range(filename_len.., ".bmp");
-    let generator = Generator::new(params);
-    let f = File::create(filename).unwrap_or_else(|e| {
-        error_exit!("could not create output file: {e}");
-    });
-    generator.generate(f).unwrap_or_else(|e| {
-        error_exit!("error generating image: {e}");
-    });
 }

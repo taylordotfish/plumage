@@ -17,11 +17,37 @@
  * along with Plumage. If not, see <https://www.gnu.org/licenses/>.
  */
 
-use super::{Color, Dimensions, Float, Seed, Spread};
+use super::{Color, Dimensions, Float, Seed};
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 
 mod seed;
+
+/// Shape of the area of neighboring pixels considered when averaging.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum Spread {
+    Square {
+        width: usize,
+    },
+    QuarterCircle {
+        radius: usize,
+    },
+}
+
+impl Spread {
+    /// The size of the bounding box (in full pixels) that holds the spread
+    /// shape.
+    pub const fn bounds(self) -> Dimensions {
+        match self {
+            Self::Square {
+                width,
+            } => Dimensions::square(width + 1),
+            Self::QuarterCircle {
+                radius,
+            } => Dimensions::square(radius + 1),
+        }
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Params {
