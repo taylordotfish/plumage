@@ -24,7 +24,7 @@ use ron::ser::PrettyConfig;
 use std::env;
 use std::fmt::Display;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::process::exit;
 
 const USAGE: &str = "\
@@ -67,29 +67,36 @@ fn main() {
 
     // Read input params.
     let params = if let Ok(f) = File::open("params") {
-        deserialize_params(f)
+        deserialize_params(BufReader::new(f))
     } else {
         deserialize_params("()".as_bytes())
     };
 
     // Create output params file.
     name.replace_range(name_len.., ".params");
-    let mut f = File::create(&name).unwrap_or_else(|e| {
+    let file = File::create(&name).unwrap_or_else(|e| {
         error_exit!("could not create output params file: {e}");
     });
+    let mut writer = BufWriter::new(file);
     let pretty = PrettyConfig::new().depth_limit(1);
-    ron::ser::to_writer_pretty(&mut f, &params, pretty)
+    ron::ser::to_writer_pretty(&mut writer, &params, pretty)
         .unwrap_or_else(params_write_failed);
-    writeln!(f).unwrap_or_else(params_write_failed);
-    drop(f);
+    writeln!(writer)
+        .and_then(|_| writer.flush())
+        .unwrap_or_else(params_write_failed);
+    drop(writer);
 
     // Create image.
     name.replace_range(name_len.., ".bmp");
     let generator = Generator::new(params);
-    let f = File::create(name).unwrap_or_else(|e| {
+    let file = File::create(name).unwrap_or_else(|e| {
         error_exit!("could not create output file: {e}");
     });
-    generator.generate(f).unwrap_or_else(|e| {
-        error_exit!("error generating image: {e}");
-    });
+    let mut writer = BufWriter::new(file);
+    generator
+        .generate(&mut writer)
+        .and_then(|_| writer.flush())
+        .unwrap_or_else(|e| {
+            error_exit!("error generating image: {e}");
+        });
 }
