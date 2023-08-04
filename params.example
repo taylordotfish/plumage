@@ -5,6 +5,6 @@
     random_power: 3.5,
     random_max: 0.05,
     gamma: 0.75,
-    //start_color: (red: 0.32941288, green: 0.30954784, blue: 0.7329547),
-    //seed: "sjCVyNoAPAoSGODQXZd/CzA/SAJU7svjgZv28VAFSJY=",
+    //start_color: (red: 0.23552912, green: 0.39750624, blue: 0.8875255),
+    //seed: "hxZ0g2JwjUWUndfTpYjpDp4UybAY8UJYnfhx2y4yLtc=",
 )

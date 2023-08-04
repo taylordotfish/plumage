@@ -1,0 +1,10 @@
+(
+    dimensions: (width: 3840, height: 2160),
+    spread: Square(width: 5),
+    distance_power: -1.75,
+    random_power: 3.5,
+    random_max: 0.05,
+    gamma: 0.75,
+    start_color: (red: 0.84426004, green: 0.84710574, blue: 0.64499414),
+    seed: "s+075ST2lVJyATiwU8l292NR24GUoRUSpdGLZaWLrPc=",
+)
