@@ -26,18 +26,18 @@ Generates <count> images in <out-dir>.
 EOF
 )
 
-if [[ "${1:-}" =~ -h|--help ]]; then
-    echo "$USAGE"
+if [[ "${1-}" =~ ^(-h|--help)$ ]]; then
+    printf '%s\n' "$USAGE"
     exit
 fi
 
 if [ -z "${2+.}" ]; then
-    echo "$USAGE"
+    printf >&2 '%s\n' "$USAGE"
     exit 1
 fi
 
-dir=${1:-}
-count=${2:-}
+dir=$1
+count=$2
 fmt_len=$(printf '%s' "$count" | wc -c)
 parallel=${PARALLEL:-$(nproc)}
 
