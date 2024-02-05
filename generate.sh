@@ -1,5 +1,5 @@
-#!/bin/bash
-# Copyright (C) 2023 taylor.fish <contact@taylor.fish>
+#!/bin/sh
+# Copyright (C) 2023-2024 taylor.fish <contact@taylor.fish>
 #
 # This file is part of Plumage.
 #
@@ -16,23 +16,24 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with Plumage. If not, see <https://www.gnu.org/licenses/>.
 
-set -euo pipefail
+set -eu
 
-USAGE=$(cat << EOF
+USAGE="\
 Usage: $(basename "$0") <out-dir> <count>
 
 Generates <count> images in <out-dir>.
 \$PARALLEL controls number of jobs.
-EOF
-)
+"
 
-if [[ "${1-}" =~ ^(-h|--help)$ ]]; then
-    printf '%s\n' "$USAGE"
-    exit
-fi
+case "${1-}" in
+    -h|--help)
+        printf '%s' "$USAGE"
+        exit 0
+        ;;
+esac
 
-if [ -z "${2+.}" ]; then
-    printf >&2 '%s\n' "$USAGE"
+if [ "$#" -ne 2 ]; then
+    printf >&2 '%s' "$USAGE"
     exit 1
 fi
 
@@ -41,30 +42,30 @@ count=$2
 fmt_len=$(printf '%s' "$count" | wc -c)
 parallel=${PARALLEL:-$(nproc)}
 
-binary=target/release/plumage
-if ! ([ -e "$binary" ] || binary=$(which plumage)); then
+if ! binary=$(PATH=target/release:$PATH which plumage); then
     echo >&2 'Error: Could not find `plumage` in $PATH or ./target/release'
-    exit
+    exit 1
 fi
 
-gen-chunk() {
+gen_chunk() {
     local start=$1
     local end=$2
-    for i in $(seq -f "%0$fmt_len.0f" $start $end); do
-        "$binary" $dir/out$i
-        convert $dir/out$i.bmp $dir/out$i.png
-        rm $dir/out$i.bmp
-        echo $i
+    local i
+    for i in $(seq -f "%0$fmt_len.0f" "$start" "$end"); do
+        "$binary" "$dir/out$i"
+        convert "$dir/out$i.bmp" "$dir/out$i.png"
+        rm "$dir/out$i.bmp"
+        printf '%s\n' "$i"
     done
 }
 
 mkdir -p "$dir"
-chunk_len=$(($count / $parallel))
-extra=$(($count - $chunk_len * $parallel))
+chunk_len=$((count / parallel))
+extra=$((count - chunk_len * parallel))
 current=1
-for i in $(seq 0 $(($parallel - 1))); do
-    end=$(($current + $chunk_len + ($i < $extra)))
-    gen-chunk $current $(($end - 1)) &
+for i in $(seq 0 "$((parallel - 1))"); do
+    end=$((current + chunk_len + (i < extra)))
+    gen_chunk "$current" "$((end - 1))" &
     current=$end
 done
 wait
