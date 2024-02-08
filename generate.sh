@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with Plumage. If not, see <https://www.gnu.org/licenses/>.
 
-set -eu
+set -euf
 
 USAGE="\
 Usage: $(basename "$0") <out-dir> <count>
