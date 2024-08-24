@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 taylor.fish <contact@taylor.fish>
+ * Copyright (C) 2023-2024 taylor.fish <contact@taylor.fish>
  *
  * This file is part of Plumage.
  *
@@ -19,6 +19,9 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(not(feature = "std"), no_std)]
+
+//! This is the library crate used by Plumage’s CLI. For more information, see
+//! [the Git repository](https://github.com/taylordotfish/plumage).
 
 extern crate alloc;
 
