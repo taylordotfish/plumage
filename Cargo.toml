@@ -1,12 +1,13 @@
 [package]
 name = "plumage"
-version = "0.1.1"
+version = "0.1.2-dev"
 edition = "2021"
 description = "Algorithmic colorful picture generator"
 documentation = "https://github.com/taylordotfish/plumage"
 readme = "misc/readme/package-readme.md"
 repository = "https://github.com/taylordotfish/plumage"
 license = "AGPL-3.0-or-later"
+exclude = ["*.png"]
 
 [dependencies]
 rand = "0.8"
