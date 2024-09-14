@@ -98,8 +98,8 @@ impl Generator {
         let mut component = || {
             let n: Float = self.rng.gen();
             let n = n.powf(self.random_power) * self.random_max;
-            let neg: bool = self.rng.gen();
-            n * Float::from(neg as i8 * 2 - 1)
+            let positive: bool = self.rng.gen();
+            n * Float::from(positive as i8 * 2 - 1)
         };
         let delta = Color {
             red: component(),
