@@ -95,7 +95,7 @@ impl Pixmap {
     ///
     /// All color components in the image must be between 0 and 1.
     pub unsafe fn to_bgr_unchecked(&self) -> Vec<u8> {
-        let row_size = (self.dimensions.width * 3 + 3) / 4 * 4;
+        let row_size = (self.dimensions.width * 3).div_ceil(4) * 4;
         let padding_len = row_size - (self.dimensions.width * 3);
         let padding_arr = [0_u8; 4];
         let padding = &padding_arr[..padding_len];

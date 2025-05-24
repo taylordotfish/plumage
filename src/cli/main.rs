@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 taylor.fish <contact@taylor.fish>
+ * Copyright (C) 2023, 2025 taylor.fish <contact@taylor.fish>
  *
  * This file is part of Plumage.
  *
@@ -25,7 +25,6 @@ use std::env;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Write};
-use std::process::exit;
 
 const USAGE: &str = "\
 Usage: plumage <name>
@@ -39,13 +38,8 @@ mod error;
 
 fn deserialize_params<R: Read>(stream: R) -> Params {
     ron::de::from_reader(stream).unwrap_or_else(|e| {
-        error_exit!("error reading params: {e}");
+        error_exit!("could not read ./params: {e}");
     })
-}
-
-fn usage() {
-    print!("{USAGE}");
-    exit(0);
 }
 
 fn params_write_failed<T>(e: impl Display) -> T {
@@ -53,17 +47,30 @@ fn params_write_failed<T>(e: impl Display) -> T {
 }
 
 fn main() {
-    let mut args = env::args().skip(1);
-    let Some(mut name) = args.next() else {
+    let mut name = None;
+    let mut options_done = false;
+    for arg in env::args().skip(1) {
+        if options_done {
+        } else if arg == "--help" || arg == "-h" {
+            print!("{USAGE}");
+            return;
+        } else if arg == "--version" {
+            println!("{}", env!("CARGO_PKG_VERSION"));
+            return;
+        } else if arg == "--" {
+            options_done = true;
+            continue;
+        } else if arg.starts_with('-') {
+            args_error!("unrecognized option: {arg}");
+        }
+        if name.is_some() {
+            args_error!("unexpected argument: {arg}");
+        }
+        name = Some(arg);
+    }
+    let Some(mut name) = name else {
         args_error!("missing <name>");
     };
-    if let Some(arg) = args.next() {
-        args_error!("unexpected argument: {arg}");
-    }
-    let name_len = name.len();
-    if name == "-h" || name == "--help" {
-        usage();
-    }
 
     // Read input params.
     let params = if let Ok(f) = File::open("params") {
@@ -73,7 +80,8 @@ fn main() {
     };
 
     // Create output params file.
-    name.replace_range(name_len.., ".params");
+    let name_len = name.len();
+    name.push_str(".params");
     let file = File::create(&name).unwrap_or_else(|e| {
         error_exit!("could not create output params file: {e}");
     });

@@ -18,7 +18,7 @@
  */
 
 use super::{Color, Dimensions, Float, Seed};
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
 use serde::{Deserialize, Serialize};
 
 mod seed;
