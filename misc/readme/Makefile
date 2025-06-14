@@ -24,3 +24,5 @@ all: ../../README.md package-readme.md
 
 package-readme.md: README.m4
 	m4 -DRUST $< > $@
+
+.DELETE_ON_ERROR:
