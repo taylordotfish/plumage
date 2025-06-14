@@ -1,4 +1,4 @@
-dnl| Copyright (C) 2024 taylor.fish <contact@taylor.fish>
+dnl| Copyright (C) 2024-2025 taylor.fish <contact@taylor.fish>
 dnl|
 dnl| This file is part of Plumage.
 dnl|
@@ -15,8 +15,8 @@ dnl|
 dnl| You should have received a copy of the GNU Affero General Public License
 dnl| along with Plumage. If not, see <https://www.gnu.org/licenses/>.
 dnl|
-define(`REPO', `https://github.com/taylordotfish/plumage')dnl
 changequote(`{', `}')dnl
+define({REPO}, {https://github.com/taylordotfish/plumage})dnl
 Plumage
 =======
 
@@ -84,4 +84,4 @@ Contributing
 
 By contributing to Plumage, you agree that your contribution may be used
 according to the terms of Plumage’s license.
-})dnl
+})dnl vim-m4: startquote={ endquote=}
